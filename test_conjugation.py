@@ -1,3 +1,4 @@
 import en
 
-print en.verb.infinitive("paints")
+coba= en.verb.past_participle("Zayre")
+print coba
