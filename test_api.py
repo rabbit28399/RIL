@@ -1,44 +1,76 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
-import re
+import pandas as pd
+import csv
 import en
 from google_ngram_downloader import readline_google_store
 from nltk.corpus import words
 from nltk.stem.wordnet import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
-all_records = readline_google_store(lang='eng', ngram_len=1, indices='z')
-this_ngram = "*"
-this_count = 0
 
-pattern = re.compile('_(VERB|VP)$')
-for (fname, url, records) in all_records:
-    for r in records:
-        ngram = r.ngram
-        grams = ngram.split()
-        flag = False
-        checker = False
-        for gram in grams:
-            if pattern.search(gram):
-                gram_word = gram.split("_")[0]
-                gram_word_unicode = gram_word.encode('utf-8')
-                low = str("%s" % gram_word_unicode).lower()
-                gram_lemma = lemmatizer.lemmatize(low, 'v')
-                if gram_lemma in words.words():
-                    flag = True
-                    checker = True
-                break
+leng = raw_input("Enter N-grams Length: ")
+ind = raw_input("Enter N-grams Indices: ")
 
-        if flag:
-            if (gram_lemma == this_ngram):
-                this_count += r.match_count
-            else:
-                print this_ngram, "\t", this_count
-                this_ngram = gram_lemma
-                this_count = r.match_count
+fname, url, records = next(readline_google_store(lang='eng', ngram_len=leng, indices=ind))
+dictVerb = {}
+dictAdj = {}
 
-        #pp_list = []
-        #if checker:
-            #pp = en.verb.past_participle(low)
-            #pp_list.append(pp)
-            #print "PP LIST = ", pp_list
+f = open("VERB_Outfile_" + ind + "_" + leng + "-grams.csv", "w")
+#h = open("ADJ_Outfile_" + ind + "_" + leng + "-grams.csv", "w")
+w = csv.writer(f)
+#x = csv.writer(h)
+
+try:
+    while True:
+        line = next(records)
+        if line is not None:
+            if "_VERB" in line.ngram:
+                print line.ngram, line.match_count
+                if line.ngram in dictVerb:
+                    dictVerb[line.ngram] += line.match_count
+                else:
+                    dictVerb[line.ngram] = line.match_count
+            #if "_ADJ" in line.ngram:
+                #print line.ngram, line.match_count
+                #if line.ngram in dictAdj: dictAdj[line.ngram] += line.match_count
+                #else: dictAdj[line.ngram] = line.match_count
+        else:
+            break
+except StopIteration:
+    pass
+
+w.writerow(["Ngrams", "Past Participle", "Match_Count"])
+for key, val in dictVerb.items():
+    gram_word = key.split("_")[0].encode('utf-8')
+    low = str("%s" % gram_word).lower()
+    gram_lemma = lemmatizer.lemmatize(low, 'v')
+    if gram_lemma in words.words():
+        is_verb = en.is_verb(gram_lemma)
+        if is_verb:
+            try:
+                past_part = en.verb.past_participle(gram_lemma)
+                if en.is_adjective(past_part):
+                    pp = past_part
+                else:
+                    pp = ''
+                print pp
+            except KeyError:
+                print("KeyError encountered")
+            w.writerow([gram_lemma, pp, val])
+f.close()
+
+df = pd.read_csv("VERB_Outfile_" + ind + "_" + leng + "-grams.csv", header = 0, index_col = ["Ngrams"])
+dfnew = df.groupby(df.index).sum()
+dfnew.to_csv("VERB_Result_" + ind + "_" + leng + "-grams.csv")
+
+#x.writerow(["Ngrams", "Match_Count"])
+#for key, val in dictAdj.items():
+    #gram_word_adj = key.split("_")[0].encode('utf-8')
+    #low_adj = str("%s" % gram_word_adj).lower()
+    #gram_lemma_adj = lemmatizer.lemmatize(low_adj, 'v')
+    #if gram_lemma_adj in words.words():
+        #is_adj = en.is_adjective(gram_lemma_adj)
+        #if is_adj:
+            #x.writerow([gram_lemma_adj, val])
+#h.close()
+#df = pd.read_csv("ADJ_Outfile_" + ind + "_" + leng +"-grams.csv", header=0, index_col=["Ngrams"])
+#dfnew = df.groupby(df.index).sum()
+#dfnew.to_csv("ADJ_Result_" + ind + "_" + leng +"-grams.csv")
