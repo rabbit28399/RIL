@@ -3,42 +3,39 @@ import csv
 import sys
 import en
 import nltk
-from google_ngram_downloader import readline_google_store
+import re
+import os
 from nltk.corpus import words
 from nltk.stem.wordnet import WordNetLemmatizer
 lemmatizer = WordNetLemmatizer()
-import re
+
 ngramLen = sys.argv[1]
 index = sys.argv[2]
-fname, url, records = next(readline_google_store(lang="eng", ngram_len=ngramLen, indices=[index]))
 dictVerbAdj = {}
 
-x = open("Result-3gram/"+index + "-Outfile-" + ngramLen + "gram-verb-adj.csv", "w")
+x = open("Result-3gram/try/"+index + "-Outfile-" + ngramLen + "gram-verb-adj.csv", "w")
 w = csv.writer(x)
 
-try:
-    while True:
-        line = next(records)
-        if line is not None:
-            tokens = line.ngram.split(" ")
-            if re.compile('VERB').search(tokens[0]) and re.compile('ADJ').search(tokens[-1]):
+with open('googlebooks-eng-all-'+ngramLen+'gram-20120701-'+index) as f:
+    for line in f:
+        line = line.rstrip()
+        if re.compile('VERB.+ADJ').search(line):
+            lsp = line.split("\t")
+            ngram = lsp[0]
+            grams = ngram.split(" ")
+            if re.compile('VERB').search(grams[0]) and re.compile('ADJ').search(grams[-1]):
                 try :
-                    print line.ngram.encode("utf-8"), line.match_count
-                    verb = tokens[0].split("_")[0]
-                    adj = tokens[-1].split("_")[0]
+                    print ngram.encode("utf-8")
+                    verb = grams[0].split("_")[0]
+                    adj = grams[-1].split("_")[0]
                     if verb.isalpha() and adj.isalpha():
-                        pattern = "-".join(tokens[1:-1])
-                        if verb+":"+adj+":"+pattern in dictVerbAdj:
-                            dictVerbAdj[verb+":"+adj+":"+pattern] += line.match_count
+                        pattern = "-".join(grams[1:-1])
+                        if verb + ":" + adj + ":" + pattern in dictVerbAdj:
+                            dictVerbAdj[verb + ":" + adj + ":" + pattern] += int(lsp[2])
                         else:
-                            dictVerbAdj[verb+":"+adj+":"+pattern] = line.match_count
-                except (UnicodeDecodeError, UnicodeEncodeError):
-                    pass
-        else:
-            break
-
-except StopIteration:
-    pass
+                            dictVerbAdj[verb + ":" + adj + ":" + pattern] = int(lsp[2])
+                except (UnicodeDecodeError, UnicodeEncodeError) : pass
+f.close()
 
 w.writerow(["Verb : Adj : Pattern", "Match_Count"])
 for key, val in dictVerbAdj.items():
@@ -55,13 +52,13 @@ for key, val in dictVerbAdj.items():
         pass
 x.close()
 
-df = pd.read_csv("Result-3gram/" + index + "-Outfile-" + ngramLen + "gram-verb-adj.csv", header=0, index_col=["Verb : Adj : Pattern"])
+df = pd.read_csv("Result-3gram/try/" + index + "-Outfile-" + ngramLen + "gram-verb-adj.csv", header=0, index_col=["Verb : Adj : Pattern"])
 dfnew = df.groupby(df.index).sum()
-dfnew.to_csv("Result-3gram/"+index + "-Outfile-" + ngramLen + "gram-verb-adj.csv")
+dfnew.to_csv("Result-3gram/try/"+index + "-Outfile-" + ngramLen + "gram-verb-adj.csv")
 
 pat_newd = {}
 patd = {}
-with open("Result-3gram/"+index + "-Outfile-" + ngramLen + "gram-verb-adj.csv", 'r+') as inf:
+with open("Result-3gram/try/"+index + "-Outfile-" + ngramLen + "gram-verb-adj.csv", 'r+') as inf:
     for line in inf:
         reader = csv.reader(inf, delimiter=",")
         for i in reader:
@@ -86,9 +83,11 @@ print patd
 print pat_newd
 inf.close()
 
-with open("Result-3gram/"+index + "-Result-" + ngramLen + "gram-verb-adj.csv", 'w') as csv_file:
+with open("Result-3gram/try/"+index + "-Result-" + ngramLen + "gram-verb-adj.csv", 'w') as csv_file:
     writer = csv.writer(csv_file)
     writer.writerow(["Verb : Adj : Pattern", "Match_Count"])
     for key, value in sorted(pat_newd.items()):
         writer.writerow([key, value])
 csv_file.close()
+
+os.system("rm googlebooks-eng-all-"+ngramLen+"gram-20120701-"+index)
